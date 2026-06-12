@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WeTransact — Availability Picker</title>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3/lib/msal-browser.min.js"></script>
+<style>
+  :root { color-scheme: light;
+    --purple:#7c5cff; --purple-dark:#5b3df0; --purple-light:#f0ecff;
+    --ink:#1a1a2e; --muted:#6b7280; --line:#e5e7eb; --bg:#fafafa; --card:#ffffff;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--ink); font-size:14px; }
+  .wrap { max-width:1100px; margin:0 auto; padding:16px; }
+
+  header { display:flex; align-items:center; gap:12px; margin-bottom:18px; }
+  header h1 { font-size:17px; }
+  header .grow { flex:1; }
+  .who { font-size:13px; color:var(--muted); }
+  .linklike { background:none; border:none; color:var(--purple-dark); cursor:pointer; font-size:13px; text-decoration:underline; }
+
+  .signin { text-align:center; padding:80px 20px; }
+  .signin h2 { font-size:20px; margin-bottom:8px; }
+  .signin p { color:var(--muted); margin-bottom:24px; }
+
+  .toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:14px; }
+  .toolbar .grow { flex:1; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--card); }
+  .seg button { border:none; background:none; padding:7px 12px; cursor:pointer; font-size:13px; color:var(--muted); }
+  .seg button.on { background:var(--purple); color:#fff; }
+  .btn { border:1px solid var(--line); background:var(--card); border-radius:8px; padding:7px 14px; cursor:pointer; font-size:13px; color:var(--ink); }
+  .btn:hover { border-color:var(--purple); }
+  .btn.primary { background:var(--purple); border-color:var(--purple); color:#fff; font-weight:600; }
+  .btn.primary:hover { background:var(--purple-dark); }
+  .btn.big { padding:12px 28px; font-size:15px; border-radius:10px; }
+  select, input[type="text"] { border:1px solid var(--line); border-radius:8px; padding:7px 10px; font-size:13px; background:var(--card); color:var(--ink); max-width:230px; }
+  label.small { font-size:12px; color:var(--muted); }
+
+  .status { font-size:13px; color:var(--muted); margin:8px 0; }
+  .grid { display:grid; gap:10px; align-items:start; }
+  .day { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px; min-height:80px; }
+  .day h3 { font-size:13px; font-weight:600; text-align:center; padding-bottom:8px; border-bottom:1px solid var(--line); margin-bottom:8px; }
+  .day h3 .dnum { color:var(--muted); font-weight:400; font-size:12px; display:block; }
+  .slot { display:block; width:100%; margin:4px 0; padding:7px 4px; text-align:center; font-size:13px; border:1px solid var(--line); border-radius:8px; background:#fff; cursor:pointer; color:var(--ink); transition:all .1s; }
+  .slot:hover { border-color:var(--purple); background:var(--purple-light); }
+  .slot.sel { background:var(--purple); border-color:var(--purple); color:#fff; font-weight:600; }
+  .busy { display:block; width:100%; margin:4px 0; padding:6px 6px; font-size:11.5px; border-radius:8px; background:#f3f4f6; border:1px dashed #d1d5db; color:var(--muted); text-align:left; line-height:1.35; cursor:default; }
+  .busy .bt { font-weight:600; color:#4b5563; }
+  .busy .bn { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
+  .noslots { font-size:12px; color:var(--muted); text-align:center; padding:12px 0; }
+
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-top:16px; }
+  .panel-head { display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+  .panel-head h2 { font-size:14px; }
+  .panel-head .grow { flex:1; }
+  #preview { border:1px dashed var(--line); border-radius:8px; padding:12px; font-size:14px; line-height:1.7; min-height:60px; }
+  #preview a { color:var(--purple-dark); font-weight:600; text-decoration:underline; }
+  .hint { font-size:12px; color:var(--muted); margin-top:8px; }
+  .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 18px; border-radius:8px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; }
+  .toast.show { opacity:1; }
+  .spin { display:inline-block; width:14px; height:14px; border:2px solid var(--line); border-top-color:var(--purple); border-radius:50%; animation:sp 0.8s linear infinite; vertical-align:-2px; margin-right:6px; }
+  @keyframes sp { to { transform:rotate(360deg); } }
+  .err { color:#b91c1c; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>📅 Availability Picker</h1>
+    <div class="grow"></div>
+    <span class="who" id="who"></span>
+    <button class="linklike" id="signOut" style="display:none">Sign out</button>
+  </header>
+
+  <div class="signin" id="signinView">
+    <h2>Share your availability in seconds</h2>
+    <p>Pick free slots from your Outlook calendar and copy hyperlinked booking times into any email.</p>
+    <button class="btn primary big" id="signInBtn">Sign in with Microsoft</button>
+    <p class="hint" id="signinErr"></p>
+  </div>
+
+  <div id="appView" style="display:none">
+    <div class="toolbar">
+      <div class="seg" id="weekSeg">
+        <button data-w="0" class="on">This week</button>
+        <button data-w="1">Next week</button>
+        <button data-w="2">Week after</button>
+      </div>
+      <div class="seg" id="durSeg">
+        <button data-d="15">15m</button>
+        <button data-d="30" class="on">30m</button>
+        <button data-d="60">60m</button>
+      </div>
+      <label class="small">Hours
+        <select id="hStart"></select> – <select id="hEnd"></select>
+      </label>
+      <label class="small">Timezone
+        <select id="tzSel"></select>
+      </label>
+      <div class="grow"></div>
+      <button class="btn" id="clearBtn">Clear</button>
+    </div>
+
+    <div class="status" id="status"></div>
+    <div class="grid" id="grid"></div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Share availability</h2>
+        <label class="small">Invite title <input type="text" id="subj" size="26"></label>
+        <div class="grow"></div>
+        <button class="btn primary" id="copyBtn">Copy for email</button>
+      </div>
+      <div id="preview"><span style="color:var(--muted)">Click free slots above — a hyperlinked snippet appears here. Each link opens a pre-filled Outlook invite addressed to you; the recipient just hits Send.</span></div>
+      <div class="hint">Paste into any email — links are preserved. Times shown in <b id="tzLabel"></b>. Grey blocks are your existing meetings (only you see them).</div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast">Copied</div>
+
+<script>
+// ====== CONFIG — set after Entra ID app registration ======
+const CONFIG = {
+  clientId: "d64e24c4-3c00-4b04-9ab0-e337d5fcc34b",
+  tenantId: "wetransact.io",   // WeTransact tenant — restricts sign-in to your org
+};
+// ==========================================================
+
+const msal = new msalBrowser.PublicClientApplication({
+  auth: {
+    clientId: CONFIG.clientId,
+    authority: "https://login.microsoftonline.com/" + CONFIG.tenantId,
+    redirectUri: window.location.origin + window.location.pathname,
+  },
+  cache: { cacheLocation: "localStorage" },
+});
+const SCOPES = ["User.Read", "Calendars.Read.Shared"];
+let account = null;
+
+const LOCAL_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const TZ_LIST = [
+  "America/Los_Angeles","America/Denver","America/Chicago","America/New_York","America/Toronto",
+  "America/Sao_Paulo","Europe/London","Europe/Dublin","Europe/Paris","Europe/Amsterdam","Europe/Brussels",
+  "Europe/Berlin","Europe/Madrid","Europe/Lisbon","Europe/Stockholm","Europe/Helsinki","Europe/Athens",
+  "Europe/Istanbul","Asia/Dubai","Asia/Karachi","Asia/Kolkata","Asia/Singapore","Asia/Hong_Kong",
+  "Asia/Shanghai","Asia/Tokyo","Asia/Seoul","Australia/Sydney","Australia/Perth","Pacific/Auckland","UTC"
+];
+
+const S = {
+  week: 0, dur: 30,
+  hStart: +(localStorage.getItem("hStart") || 9),
+  hEnd:   +(localStorage.getItem("hEnd")   || 18),
+  tz: localStorage.getItem("tz") || LOCAL_TZ,
+  slots: {}, events: {}, selected: new Set(),
+};
+
+// timezone-aware formatting helpers
+function fmt(d, opts){ return new Intl.DateTimeFormat(undefined, Object.assign({timeZone:S.tz}, opts)).format(d); }
+function fmtTime(d){ return fmt(d, {hour:"numeric", minute:"2-digit"}); }
+function dayKey(d){ return new Intl.DateTimeFormat("en-CA", {timeZone:S.tz, year:"numeric", month:"2-digit", day:"2-digit"}).format(d); }
+function tzLongName(){
+  try { return new Intl.DateTimeFormat("en", {timeZone:S.tz, timeZoneName:"long"}).formatToParts(new Date()).find(p=>p.type==="timeZoneName").value + " (" + S.tz.replace(/_/g," ") + ")"; }
+  catch(e){ return S.tz; }
+}
+function updateTzLabel(){ document.getElementById("tzLabel").textContent = tzLongName(); }
+
+// ---- auth ----
+async function init(){
+  await msal.initialize();
+  try {
+    const resp = await msal.handleRedirectPromise();
+    if (resp && resp.account) msal.setActiveAccount(resp.account);
+  } catch(e){ showSigninErr(e); }
+  const accts = msal.getAllAccounts();
+  if (accts.length) { account = accts[0]; msal.setActiveAccount(account); onSignedIn(); }
+}
+document.getElementById("signInBtn").onclick = () =>
+  msal.loginRedirect({ scopes: SCOPES }).catch(showSigninErr);
+document.getElementById("signOut").onclick = () =>
+  msal.logoutRedirect({ account });
+function showSigninErr(e){
+  document.getElementById("signinErr").innerHTML = '<span class="err">' + (e.errorMessage || e.message || e) + "</span>";
+}
+function onSignedIn(){
+  document.getElementById("signinView").style.display = "none";
+  document.getElementById("appView").style.display = "";
+  document.getElementById("signOut").style.display = "";
+  document.getElementById("who").textContent = account.name + " · " + account.username;
+  document.getElementById("subj").value = "Meeting with " + account.name;
+  load();
+}
+async function token(){
+  try { return (await msal.acquireTokenSilent({ scopes: SCOPES, account })).accessToken; }
+  catch(e){ await msal.acquireTokenRedirect({ scopes: SCOPES }); }
+}
+
+// ---- UI controls ----
+const hs = document.getElementById("hStart"), he = document.getElementById("hEnd");
+for (let h = 6; h <= 22; h++){ hs.add(new Option(fmtHourLocal(h), h)); he.add(new Option(fmtHourLocal(h), h)); }
+hs.value = S.hStart; he.value = S.hEnd;
+hs.onchange = () => { S.hStart = +hs.value; localStorage.setItem("hStart", hs.value); load(); };
+he.onchange = () => { S.hEnd = +he.value; localStorage.setItem("hEnd", he.value); load(); };
+function fmtHourLocal(h){ return new Date(2000,0,1,h).toLocaleTimeString([], {hour:"numeric"}); }
+
+const tzSel = document.getElementById("tzSel");
+const tzOptions = TZ_LIST.includes(LOCAL_TZ) ? TZ_LIST : [LOCAL_TZ].concat(TZ_LIST);
+tzOptions.forEach(z => tzSel.add(new Option(z.replace(/_/g," "), z)));
+tzSel.value = S.tz;
+tzSel.onchange = () => {
+  S.tz = tzSel.value; localStorage.setItem("tz", S.tz);
+  updateTzLabel(); renderGrid(); renderPreview();
+};
+updateTzLabel();
+
+document.getElementById("weekSeg").onclick = e => seg(e, "weekSeg", b => { S.week = +b.dataset.w; load(); });
+document.getElementById("durSeg").onclick  = e => seg(e, "durSeg",  b => { S.dur  = +b.dataset.d; load(); });
+function seg(e, id, fn){
+  const b = e.target.closest("button"); if (!b) return;
+  document.querySelectorAll("#"+id+" button").forEach(x => x.classList.remove("on"));
+  b.classList.add("on"); fn(b);
+}
+document.getElementById("clearBtn").onclick = () => { S.selected.clear(); renderGrid(); renderPreview(); };
+document.getElementById("subj").oninput = renderPreview;
+
+// ---- dates (fetch windows use the calendar owner's local tz) ----
+function mondayOf(weekOffset){
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dow = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - dow + weekOffset * 7);
+  return d;
+}
+
+// ---- load from Microsoft Graph ----
+let loadSeq = 0;
+async function load(){
+  const seq = ++loadSeq;
+  S.slots = {}; S.events = {}; S.selected.clear();
+  const mon = mondayOf(S.week);
+  const days = [];
+  for (let i = 0; i < 5; i++){ const d = new Date(mon); d.setDate(d.getDate()+i); days.push(d); }
+  status('<span class="spin"></span>Syncing your Outlook calendar…');
+  renderGrid(days);
+
+  const tk = await token();
+  if (!tk) return;
+  const now = new Date();
+
+  // 1) existing events for the whole week (calendar sync view)
+  const weekStart = new Date(mon); weekStart.setHours(0,0,0,0);
+  const weekEnd = new Date(mon); weekEnd.setDate(weekEnd.getDate()+5); weekEnd.setHours(0,0,0,0);
+  const eventsP = fetch("https://graph.microsoft.com/v1.0/me/calendarView?" + new URLSearchParams({
+      startDateTime: weekStart.toISOString(), endDateTime: weekEnd.toISOString(),
+      $select: "subject,start,end,showAs,isAllDay", $orderby: "start/dateTime", $top: "100",
+    }), { headers: { Authorization: "Bearer " + tk, Prefer: 'outlook.timezone="UTC"' } })
+    .then(r => r.ok ? r.json() : Promise.reject(new Error("Graph " + r.status)))
+    .then(obj => {
+      (obj.value || []).forEach(ev => {
+        if (ev.isAllDay || ev.showAs === "free") return;
+        const st = new Date(ev.start.dateTime + "Z"), en = new Date(ev.end.dateTime + "Z");
+        const k = dayKey(st);
+        (S.events[k] = S.events[k] || []).push({ subject: ev.subject || "(busy)", start: st, end: en });
+      });
+    }).catch(e => console.error("calendarView", e));
+
+  // 2) free slots per day
+  const slotsP = Promise.all(days.map(async d => {
+    let start = new Date(d); start.setHours(S.hStart,0,0,0);
+    const end = new Date(d); end.setHours(S.hEnd,0,0,0);
+    const k0 = dayKey(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12));
+    if (end <= now) { S.slots[k0] = S.slots[k0] || []; return; }
+    let s2 = start < now ? new Date(Math.ceil(now.getTime() / (30*60000)) * 30*60000) : start;
+    if (s2 >= end) { S.slots[k0] = S.slots[k0] || []; return; }
+    try {
+      const r = await fetch("https://graph.microsoft.com/v1.0/me/findMeetingTimes", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + tk, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          timeConstraint: { activityDomain: "unrestricted", timeSlots: [{
+            start: { dateTime: s2.toISOString().slice(0,19), timeZone: "UTC" },
+            end:   { dateTime: end.toISOString().slice(0,19), timeZone: "UTC" },
+          }]},
+          meetingDuration: "PT" + S.dur + "M",
+          maxCandidates: 50,
+          returnSuggestionReasons: false,
+        }),
+      });
+      if (!r.ok) throw new Error("Graph " + r.status);
+      const obj = await r.json();
+      (obj.meetingTimeSuggestions || [])
+        .filter(s => s.organizerAvailability === "free")
+        .forEach(s => {
+          const st = new Date(s.meetingTimeSlot.start.dateTime + "Z");
+          const en = new Date(s.meetingTimeSlot.end.dateTime + "Z");
+          const k = dayKey(st);
+          (S.slots[k] = S.slots[k] || []).push({ startISO: st.toISOString(), endISO: en.toISOString(), start: st, end: en });
+        });
+    } catch(err){
+      console.error(err);
+      S.slots[k0] = S.slots[k0] || []; S.slots[k0].error = true;
+    }
+  }));
+
+  await Promise.all([eventsP, slotsP]);
+  if (seq !== loadSeq) return;
+  Object.values(S.slots).forEach(a => a.sort((x,y) => x.start - y.start));
+  Object.values(S.events).forEach(a => a.sort((x,y) => x.start - y.start));
+  const total = Object.values(S.slots).reduce((n,a)=>n+a.length,0);
+  const nEv = Object.values(S.events).reduce((n,a)=>n+a.length,0);
+  status(total || nEv
+    ? total + " free slots · " + nEv + " existing meetings this week. Click slots to select."
+    : "No free slots in this range. Try different hours or another week.");
+  renderGrid(days);
+  renderPreview();
+}
+function status(html){ document.getElementById("status").innerHTML = html; }
+
+// ---- grid (merges free slots + booked meetings, ordered by time) ----
+let curDays = [];
+function renderGrid(days){
+  if (days) curDays = days;
+  const grid = document.getElementById("grid");
+  grid.style.gridTemplateColumns = "repeat(" + curDays.length + ",1fr)";
+  grid.innerHTML = "";
+  curDays.forEach(d => {
+    const noon = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12);
+    const k = dayKey(noon);
+    const col = document.createElement("div"); col.className = "day";
+    const h = document.createElement("h3");
+    h.innerHTML = fmt(noon, {weekday:"short"}) + '<span class="dnum">' + fmt(noon, {month:"short", day:"numeric"}) + "</span>";
+    col.appendChild(h);
+
+    const slots = S.slots[k], events = S.events[k] || [];
+    const items = [];
+    (slots || []).forEach(s => items.push({ t: s.start, kind: "slot", s }));
+    events.forEach(ev => items.push({ t: ev.start, kind: "busy", ev }));
+    items.sort((a,b) => a.t - b.t);
+
+    if (!slots && !events.length) col.insertAdjacentHTML("beforeend",'<div class="noslots">…</div>');
+    else if (!items.length) col.insertAdjacentHTML("beforeend",'<div class="noslots">' + (slots && slots.error ? "couldn’t load" : "no free slots") + "</div>");
+    else items.forEach(it => {
+      if (it.kind === "busy"){
+        const b = document.createElement("div"); b.className = "busy";
+        b.title = it.ev.subject;
+        b.innerHTML = '<span class="bt">' + fmtTime(it.ev.start) + "–" + fmtTime(it.ev.end) + '</span><span class="bn"></span>';
+        b.querySelector(".bn").textContent = it.ev.subject;
+        col.appendChild(b);
+      } else {
+        const s = it.s, id = s.startISO + "|" + s.endISO;
+        const b = document.createElement("button");
+        b.className = "slot" + (S.selected.has(id) ? " sel" : "");
+        b.textContent = fmtTime(s.start);
+        b.onclick = () => { S.selected.has(id) ? S.selected.delete(id) : S.selected.add(id); b.classList.toggle("sel"); renderPreview(); };
+        col.appendChild(b);
+      }
+    });
+    grid.appendChild(col);
+  });
+}
+
+// ---- booking link (Outlook deeplink, addressed to signed-in user) ----
+function bookingLink(startISO, endISO){
+  const p = new URLSearchParams({
+    path: "/calendar/action/compose", rru: "addevent",
+    startdt: startISO, enddt: endISO,
+    subject: document.getElementById("subj").value || ("Meeting with " + account.name),
+    to: account.username,
+    body: "Booked from " + account.name + "'s shared availability. Hit Send and it's confirmed.",
+  });
+  return "https://outlook.office.com/calendar/deeplink/compose?" + p.toString();
+}
+
+// ---- preview + copy ----
+function selectedByDay(){
+  const byDay = {};
+  [...S.selected].map(id => { const [s,e] = id.split("|"); return { start:new Date(s), end:new Date(e), s, e }; })
+    .sort((a,b) => a.start - b.start)
+    .forEach(x => { const k = dayKey(x.start); (byDay[k] = byDay[k] || []).push(x); });
+  return byDay;
+}
+function buildHTML(){
+  const byDay = selectedByDay();
+  const keys = Object.keys(byDay).sort();
+  if (!keys.length) return null;
+  let h = "<div>Would any of these times work for you? Click one to book it directly <i>(times in " + tzLongName() + ")</i>:<br><br>";
+  keys.forEach(k => {
+    const d = byDay[k][0].start;
+    h += "<b>" + fmt(d, {weekday:"long", month:"long", day:"numeric"}) + "</b><br>";
+    byDay[k].forEach(x => {
+      h += '&nbsp;&nbsp;•&nbsp;<a href="' + bookingLink(x.s, x.e) + '">' + fmtTime(x.start) + " – " + fmtTime(x.end) + "</a><br>";
+    });
+    h += "<br>";
+  });
+  return h + "</div>";
+}
+function renderPreview(){
+  document.getElementById("preview").innerHTML = buildHTML() ||
+    '<span style="color:var(--muted)">Click free slots above — a hyperlinked snippet appears here.</span>';
+}
+document.getElementById("copyBtn").onclick = async () => {
+  const h = buildHTML();
+  if (!h) { toast("Select some slots first"); return; }
+  const plain = document.getElementById("preview").innerText;
+  try {
+    await navigator.clipboard.write([new ClipboardItem({
+      "text/html": new Blob([h], {type:"text/html"}),
+      "text/plain": new Blob([plain], {type:"text/plain"}),
+    })]);
+    toast("Copied — paste into your email");
+  } catch(e){
+    const el = document.getElementById("preview");
+    const r = document.createRange(); r.selectNodeContents(el);
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    document.execCommand("copy"); sel.removeAllRanges();
+    toast("Copied — paste into your email");
+  }
+};
+function toast(msg){
+  const t = document.getElementById("toast"); t.textContent = msg;
+  t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+init();
+</script>
+</body>
+</html>
