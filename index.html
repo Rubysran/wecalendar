@@ -107,6 +107,10 @@
   .sel:hover { background:rgba(37,99,235,.92); }
   .sel .x { position:absolute; top:2px; right:5px; font-weight:700; opacity:.75; }
   .sel.tmp { background:rgba(59,130,246,.45); box-shadow:none; }
+  .sel.conflict { background:rgba(245,158,11,.92); box-shadow:0 1px 4px rgba(217,119,6,.4); }
+  .addtz { display:block; margin:4px auto 0; border:none; background:none; color:var(--muted); font-size:10px; cursor:pointer; font-family:inherit; }
+  .addtz:hover { color:var(--blue-dark); }
+  .tzremove { color:#b91c1c; font-weight:600; }
 
   .panel { width:290px; flex-shrink:0; position:sticky; top:10px; border:1px solid var(--line); border-radius:14px; padding:14px; margin:0 0 20px; box-shadow:0 2px 10px rgba(0,0,0,.04); }
   .panel h2 { font-size:14px; font-weight:600; }
@@ -200,6 +204,9 @@
         <input type="text" id="subj" style="width:100%">
         <div id="preview" style="margin-top:12px"><span style="color:var(--muted2)">Click or drag on the calendar to paint availability slots — a hyperlinked snippet appears here.</span></div>
         <div class="hint">Click a painted slot to remove it. Standard slots are 30 min; drag for longer (snaps to 15 min). Times shown in <b id="tzLabel"></b>.</div>
+        <div class="panel-btns">
+          <button class="btn" id="suggBtn" style="width:100%">✨ Suggest 5 slots</button>
+        </div>
         <div class="panel-btns">
           <button class="btn" id="clearBtn">Clear</button>
           <button class="btn primary" id="copyBtn">Copy for email</button>
@@ -349,11 +356,35 @@ const PCOLORS = ["#f59e0b","#10b981","#ec4899","#8b5cf6"];
 const S = {
   week: 0,
   tz: localStorage.getItem("tz2") || LOCAL_TZ,
+  tz2: localStorage.getItem("tzSecond") || null,   // secondary ruler
   events: [], sel: [], q: "",
   cals: [],          // {id,name,isDefault,checked}
-  people: [],        // {email,color}
+  people: [],        // {email,name,color}
   schedules: {},     // email -> [{start,end}]
 };
+
+// ---- painted-slot persistence ----
+function saveSel(){
+  try { localStorage.setItem("paintedSlots", JSON.stringify(S.sel.map(x => [x.start.toISOString(), x.end.toISOString()]))); } catch(e){}
+}
+function loadSel(){
+  try {
+    const raw = JSON.parse(localStorage.getItem("paintedSlots") || "[]");
+    const now = new Date();
+    S.sel = raw.map(([a,b]) => ({ start: new Date(a), end: new Date(b) })).filter(x => x.end > now);
+  } catch(e){ S.sel = []; }
+}
+loadSel();
+
+// ---- conflict detection ----
+function overlaps(aS, aE, bS, bE){ return bS < aE && aS < bE; }
+function findConflict(start, end){
+  for (const ev of S.events) if (overlaps(start, end, ev.start, ev.end)) return "your “" + ev.subject + "”";
+  for (const p of S.people)
+    for (const it of (S.schedules[p.email] || []))
+      if (overlaps(start, end, it.start, it.end)) return (p.name || p.email) + "’s busy time";
+  return null;
+}
 
 function tzAbbr(zone){
   const t = TZS.find(z => z.name === zone);
@@ -376,7 +407,9 @@ function tzLongName(){
 
 // ---- tz popover ----
 const tzPop = document.getElementById("tzPop"), tzSearch = document.getElementById("tzSearch"), tzList = document.getElementById("tzList");
-function openTzPop(anchor){
+let tzTarget = "main";   // "main" | "second"
+function openTzPop(anchor, target){
+  tzTarget = target || "main";
   const r = anchor.getBoundingClientRect();
   tzPop.style.display = "block";
   tzPop.style.left = Math.min(r.left, innerWidth - 320) + "px";
@@ -390,13 +423,23 @@ tzSearch.oninput = () => renderTzList(tzSearch.value.trim().toLowerCase());
 function renderTzList(q){
   const items = TZS.filter(z => !q || z.ab.toLowerCase().includes(q) || z.name.toLowerCase().includes(q) || z.city.toLowerCase().includes(q) || z.alias.includes(q));
   tzList.innerHTML = "";
+  if (tzTarget === "second" && S.tz2){
+    const rm = document.createElement("div"); rm.className = "tzitem tzremove";
+    rm.textContent = "✕ Remove this timezone ruler";
+    rm.onclick = () => { S.tz2 = null; localStorage.removeItem("tzSecond"); tzPop.style.display = "none"; renderAll(); };
+    tzList.appendChild(rm);
+  }
   items.forEach(z => {
     const d = document.createElement("div"); d.className = "tzitem";
     d.innerHTML = '<span class="ab"></span><span class="nm"></span><span class="ct"></span>';
     d.querySelector(".ab").textContent = z.ab;
     d.querySelector(".nm").textContent = z.city;
     d.querySelector(".ct").textContent = fmtInZone(z.name);
-    d.onclick = () => { S.tz = z.name; localStorage.setItem("tz2", z.name); tzPop.style.display = "none"; renderAll(); };
+    d.onclick = () => {
+      if (tzTarget === "second"){ S.tz2 = z.name; localStorage.setItem("tzSecond", z.name); }
+      else { S.tz = z.name; localStorage.setItem("tz2", z.name); }
+      tzPop.style.display = "none"; renderAll();
+    };
     tzList.appendChild(d);
   });
   if (!items.length) tzList.innerHTML = '<div class="tzitem" style="color:var(--muted)">No match</div>';
@@ -427,7 +470,50 @@ function weekRange(){
 document.getElementById("todayBtn").onclick = () => { S.week = 0; load(); };
 document.getElementById("prevW").onclick = () => { S.week--; load(); };
 document.getElementById("nextW").onclick = () => { S.week++; load(); };
-document.getElementById("clearBtn").onclick = () => { S.sel = []; renderAll(); };
+document.getElementById("clearBtn").onclick = () => { S.sel = []; saveSel(); renderAll(); };
+
+// ---- auto-suggest 5 free slots ----
+document.getElementById("suggBtn").onclick = () => {
+  const days = weekDays(), now = new Date();
+  const busy = S.events.slice();
+  S.people.forEach(p => (S.schedules[p.email] || []).forEach(it => busy.push({ start: it.start, end: it.end })));
+  const byDay = {};
+  days.forEach(d => {
+    if (d.getDay() === 0 || d.getDay() === 6) return;
+    const cands = [];
+    for (let m = 9*60; m <= 17.5*60; m += 30){
+      const st = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, m);
+      const en = new Date(st.getTime() + 30*60000);
+      if (st < now) continue;
+      if (busy.some(b => b.start < en && st < b.end)) continue;
+      if (S.sel.some(b => b.start < en && st < b.end)) continue;
+      // prefer 10:30 or 15:00 starts
+      const score = Math.min(Math.abs(m - 10.5*60), Math.abs(m - 15*60));
+      cands.push({ st, en, score });
+    }
+    cands.sort((a,b) => a.score - b.score);
+    if (cands.length) byDay[keyOf(d)] = cands;
+  });
+  const picked = [];
+  let progress = true;
+  while (picked.length < 5 && progress){
+    progress = false;
+    for (const k of Object.keys(byDay)){
+      if (picked.length >= 5) break;
+      const cands = byDay[k];
+      while (cands.length){
+        const c = cands.shift();
+        const tooClose = picked.some(p => keyOf(p.st) === k && Math.abs(p.st - c.st) < 120*60000);
+        if (!tooClose){ picked.push(c); progress = true; break; }
+      }
+    }
+  }
+  if (!picked.length){ toast("No free 30-min gaps found (9 AM–6 PM)"); return; }
+  picked.forEach(c => S.sel.push({ start: c.st, end: c.en }));
+  S.sel.sort((a,b) => a.start - b.start);
+  saveSel(); renderAll();
+  toast("Painted " + picked.length + " suggested slots");
+};
 document.getElementById("subj").oninput = renderPreview;
 
 // ---- sidebar: search ----
@@ -570,10 +656,25 @@ function renderHeadAndMonth(){
 
   const head = document.getElementById("calHead");
   head.innerHTML = "";
-  const gut = document.createElement("div"); gut.className = "gut";
+  head.style.gridTemplateColumns = gridCols();
+  if (S.tz2){
+    const gut2 = document.createElement("div"); gut2.className = "gut";
+    const chip2 = document.createElement("button"); chip2.className = "tzchip"; chip2.textContent = tzAbbr(S.tz2);
+    chip2.title = S.tz2;
+    chip2.onclick = e => { e.stopPropagation(); openTzPop(chip2, "second"); };
+    gut2.appendChild(chip2); head.appendChild(gut2);
+  }
+  const gut = document.createElement("div"); gut.className = "gut"; gut.style.flexDirection = "column";
   const chip = document.createElement("button"); chip.className = "tzchip"; chip.textContent = tzAbbr(S.tz);
   chip.onclick = e => { e.stopPropagation(); openTzPop(chip); };
-  gut.appendChild(chip); head.appendChild(gut);
+  gut.appendChild(chip);
+  if (!S.tz2){
+    const add = document.createElement("button"); add.className = "addtz"; add.textContent = "+ TZ";
+    add.title = "Add a second timezone ruler";
+    add.onclick = e => { e.stopPropagation(); openTzPop(add, "second"); };
+    gut.appendChild(add);
+  }
+  head.appendChild(gut);
   const todayK = keyOf(new Date());
   days.forEach(d => {
     const noon = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12);
@@ -584,12 +685,26 @@ function renderHeadAndMonth(){
 }
 function keyOf(d){ return d.getFullYear()+"-"+d.getMonth()+"-"+d.getDate(); }
 
+function gridCols(){ return (S.tz2 ? "58px " : "") + "58px repeat(7,1fr)"; }
 function renderBody(){
   const days = weekDays();
   const body = document.getElementById("calBody");
   body.innerHTML = "";
+  body.style.gridTemplateColumns = gridCols();
   const hourpx = 60 * PPM, H = 24 * hourpx;
   body.style.height = H + "px";
+
+  if (S.tz2){
+    const gut2 = document.createElement("div"); gut2.className = "gutter";
+    for (let i = 1; i < 24; i++){
+      const t = new Date(days[0].getFullYear(), days[0].getMonth(), days[0].getDate(), i);
+      const hl = document.createElement("div"); hl.className = "hl"; hl.style.color = "#c2410c";
+      hl.style.top = (i * hourpx) + "px";
+      hl.textContent = new Intl.DateTimeFormat("en-US", {timeZone:S.tz2, hour:"numeric", minute:"2-digit"}).format(t).replace(":00","");
+      gut2.appendChild(hl);
+    }
+    body.appendChild(gut2);
+  }
 
   const gut = document.createElement("div"); gut.className = "gutter";
   for (let i = 1; i < 24; i++){
@@ -642,13 +757,14 @@ function renderBody(){
     S.sel.forEach((s, idx) => {
       if (s.end <= dayStart || s.start >= dayEnd) return;
       const a = Math.max(top(s.start), 0), b = Math.min(top(s.end), H);
-      const el = document.createElement("div"); el.className = "evt sel";
+      const conflict = findConflict(s.start, s.end);
+      const el = document.createElement("div"); el.className = "evt sel" + (conflict ? " conflict" : "");
       el.style.top = a + "px"; el.style.height = Math.max(b - a - 1, 12) + "px";
-      el.textContent = fmtTime(s.start) + " – " + fmtTime(s.end);
+      el.textContent = (conflict ? "⚠ " : "") + fmtTime(s.start) + " – " + fmtTime(s.end);
       el.insertAdjacentHTML("beforeend", '<span class="x">×</span>');
-      el.title = "Click to remove";
+      el.title = conflict ? "Overlaps " + conflict + " — click to remove" : "Click to remove";
       el.onpointerdown = e => e.stopPropagation();
-      el.onclick = e => { e.stopPropagation(); S.sel.splice(idx, 1); renderAll(); };
+      el.onclick = e => { e.stopPropagation(); S.sel.splice(idx, 1); saveSel(); renderAll(); };
       col.appendChild(el);
     });
 
@@ -699,6 +815,9 @@ function attachPaint(col, dayStart){
     paint.el.remove(); paint = null;
     S.sel.push({ start, end });
     S.sel.sort((a,b) => a.start - b.start);
+    saveSel();
+    const c = findConflict(start, end);
+    if (c) toast("⚠ Heads up — this overlaps " + c);
     renderAll();
   };
 }
