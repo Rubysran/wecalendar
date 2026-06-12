@@ -3,164 +3,177 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WeTransact — Availability Picker</title>
+<title>WeTransact — Availability</title>
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3/lib/msal-browser.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root { color-scheme: light;
-    --purple:#7C6FF7;        /* Light Accent */
-    --purple-dark:#5E43C8;   /* hover/links */
-    --purple-light:#e8e5ff;  /* Light Contrast */
-    --ink:#2C1C6C;
-    --muted:#6b7280; --line:#E2DBFF; --bg:#FBF9FF; --card:#ffffff;
+    --blue:#3b82f6; --blue-dark:#2563eb; --blue-light:#eff6ff;
+    --ink:#1f2937; --muted:#9ca3af; --muted2:#6b7280;
+    --line:#ececec; --line2:#f4f4f5; --bg:#ffffff; --card:#ffffff;
+    --wt-purple:#7C6FF7; --wt-ink:#2C1C6C;
   }
   * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:var(--bg); color:var(--ink); font-size:14px; }
-  .wrap { max-width:1100px; margin:0 auto; padding:16px; }
+  body { font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:var(--bg); color:var(--ink); font-size:14px; }
+  .app { max-width:1280px; margin:0 auto; padding:0 8px; }
 
-  header { display:flex; align-items:center; gap:12px; margin-bottom:18px; }
-  header .logo { height:30px; display:block; }
-  header .sub { font-size:13px; color:var(--muted); border-left:1px solid var(--line); padding-left:12px; }
-  header .grow { flex:1; }
-  .who { font-size:13px; color:var(--muted); }
-  .linklike { background:none; border:none; color:var(--purple-dark); cursor:pointer; font-size:13px; text-decoration:underline; font-family:inherit; }
+  /* ---- top bar ---- */
+  .top { display:flex; align-items:center; gap:14px; padding:14px 10px 10px; }
+  .top .logo { height:24px; display:block; }
+  .month { line-height:1.15; }
+  .month .m { font-size:22px; font-weight:600; letter-spacing:-.2px; }
+  .month .tzline { font-size:13px; color:var(--muted2); cursor:pointer; }
+  .month .tzline:hover { color:var(--blue-dark); }
+  .btn { border:1px solid var(--line); background:#fff; border-radius:10px; padding:8px 16px; cursor:pointer; font-size:14px; color:var(--ink); font-family:inherit; }
+  .btn:hover { background:#fafafa; }
+  .navarr { border:none; background:none; cursor:pointer; font-size:18px; color:var(--muted2); padding:6px 8px; border-radius:8px; }
+  .navarr:hover { background:#f4f4f5; }
+  .grow { flex:1; }
+  .who { font-size:13px; color:var(--muted2); }
+  .linklike { background:none; border:none; color:var(--blue-dark); cursor:pointer; font-size:13px; text-decoration:underline; font-family:inherit; }
 
-  .signin { text-align:center; padding:80px 20px; }
+  /* ---- tz search popover ---- */
+  .tzpop { position:absolute; z-index:50; background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,.12); width:300px; padding:8px; display:none; }
+  .tzpop input { width:100%; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:14px; font-family:inherit; outline:none; }
+  .tzpop input:focus { border-color:var(--blue); }
+  .tzlist { max-height:260px; overflow:auto; margin-top:6px; }
+  .tzitem { display:flex; gap:10px; align-items:center; padding:7px 8px; border-radius:8px; cursor:pointer; font-size:13.5px; }
+  .tzitem:hover, .tzitem.hover { background:var(--blue-light); }
+  .tzitem .ab { font-weight:600; width:52px; color:var(--blue-dark); }
+  .tzitem .nm { color:var(--ink); }
+  .tzitem .ct { color:var(--muted); margin-left:auto; font-size:12px; }
+
+  /* ---- signin ---- */
+  .signin { text-align:center; padding:90px 20px; }
   .signin h2 { font-size:22px; margin-bottom:8px; font-weight:600; }
-  .signin p { color:var(--muted); margin-bottom:24px; }
+  .signin p { color:var(--muted2); margin-bottom:24px; }
+  .btn.primary { background:var(--blue); border-color:var(--blue); color:#fff; font-weight:600; }
+  .btn.primary:hover { background:var(--blue-dark); }
+  .btn.big { padding:12px 30px; font-size:15px; border-radius:12px; }
 
-  .toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:14px; }
-  .toolbar .grow { flex:1; }
-  .seg { display:inline-flex; border:1px solid var(--line); border-radius:999px; overflow:hidden; background:var(--card); }
-  .seg button { border:none; background:none; padding:7px 14px; cursor:pointer; font-size:13px; color:var(--muted); font-family:inherit; }
-  .seg button.on { background:var(--purple); color:#fff; font-weight:500; }
-  .btn { border:1px solid var(--line); background:var(--card); border-radius:999px; padding:7px 16px; cursor:pointer; font-size:13px; color:var(--ink); font-family:inherit; }
-  .btn:hover { border-color:var(--purple); }
-  .btn.primary { background:var(--purple); border-color:var(--purple); color:#fff; font-weight:600; }
-  .btn.primary:hover { background:var(--purple-dark); }
-  .btn.big { padding:12px 30px; font-size:15px; }
-  select, input[type="text"] { border:1px solid var(--line); border-radius:8px; padding:7px 10px; font-size:13px; background:var(--card); color:var(--ink); max-width:230px; font-family:inherit; }
-  label.small { font-size:12px; color:var(--muted); }
+  .statusline { font-size:12.5px; color:var(--muted); padding:0 10px 8px; }
 
-  .status { font-size:13px; color:var(--muted); margin:8px 0; }
+  /* ---- calendar ---- */
+  .cal { border-top:1px solid var(--line); }
+  .cal-head { display:grid; grid-template-columns:64px repeat(7,1fr); }
+  .cal-head .gut { display:flex; align-items:center; justify-content:center; padding:10px 0; }
+  .tzchip { border:1px solid var(--line); border-radius:10px; font-size:12px; font-weight:600; color:var(--muted2); padding:6px 10px; background:#fff; cursor:pointer; }
+  .tzchip:hover { border-color:var(--blue); color:var(--blue-dark); }
+  .dh { text-align:center; padding:10px 4px 12px; }
+  .dh .wd { font-size:12px; font-weight:600; color:var(--muted2); letter-spacing:.06em; }
+  .dh .dn { font-size:22px; font-weight:500; margin-top:2px; width:40px; height:40px; line-height:40px; border-radius:10px; display:inline-block; }
+  .dh.today .wd { color:var(--blue); }
+  .dh.today .dn { background:var(--blue); color:#fff; font-weight:600; }
 
-  /* ---- Vimcal-style week grid ---- */
-  .cal { background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:0 2px 8px rgba(44,28,108,.07); overflow:hidden; }
-  .cal-head { display:grid; border-bottom:1px solid var(--line); }
-  .cal-head .gut { }
-  .cal-head .dh { text-align:center; padding:10px 4px; font-size:13px; font-weight:600; border-left:1px solid var(--line); }
-  .cal-head .dh .dnum { color:var(--muted); font-weight:400; font-size:11.5px; display:block; }
-  .cal-body { display:grid; position:relative; }
+  .scroller { height:calc(100vh - 215px); min-height:430px; overflow-y:auto; border-top:1px solid var(--line); }
+  .cal-body { display:grid; grid-template-columns:64px repeat(7,1fr); position:relative; }
   .gutter { position:relative; }
-  .gutter .hl { position:absolute; right:6px; transform:translateY(-50%); font-size:10.5px; color:var(--muted); }
-  .daycol { position:relative; border-left:1px solid var(--line); }
-  .daycol .gridlines { position:absolute; inset:0;
-    background:repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--hourpx) - 1px), var(--line) calc(var(--hourpx) - 1px), var(--line) var(--hourpx));
-    opacity:.55; pointer-events:none; }
-  .evt { position:absolute; left:4px; right:4px; border-radius:8px; overflow:hidden; }
-  .slot { border:1.5px solid var(--purple); background:#fff; color:var(--purple-dark); cursor:pointer; font-size:11.5px; font-weight:600;
-    display:flex; align-items:center; justify-content:center; transition:all .08s; font-family:inherit; }
-  .slot:hover { background:var(--purple-light); }
-  .slot.sel { background:var(--purple); border-color:var(--purple); color:#fff; }
-  .busy { background:#F2EEFF; border:1px dashed #C9BCFF; color:#402C93; font-size:10.5px; padding:2px 6px; line-height:1.3; cursor:default; }
-  .busy .bn { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; font-weight:500; }
-  .busy .bt { font-weight:400; color:var(--muted); font-size:10px; }
+  .gutter .hl { position:absolute; right:10px; transform:translateY(-50%); font-size:11px; color:var(--muted); background:#fff; padding:0 2px; }
+  .daycol { position:relative; border-left:1px solid var(--line2); cursor:crosshair; }
+  .daycol .lines { position:absolute; inset:0; pointer-events:none;
+    background:repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--hourpx) - 1px), var(--line) calc(var(--hourpx) - 1px), var(--line) var(--hourpx)); }
+  .nowline { position:absolute; left:0; right:0; height:2px; background:#ef4444; z-index:6; pointer-events:none; }
+  .nowline::before { content:""; position:absolute; left:-4px; top:-3px; width:8px; height:8px; border-radius:50%; background:#ef4444; }
 
-  .panel { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px; margin-top:16px; box-shadow:0 2px 8px rgba(44,28,108,.07); }
+  .evt { position:absolute; left:3px; right:3px; border-radius:6px; overflow:hidden; }
+  .busy { background:#f1f5f9; border-left:3px solid #94a3b8; color:#475569; font-size:11px; padding:3px 6px; line-height:1.3; pointer-events:none; z-index:2; }
+  .busy .bn { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; font-weight:600; }
+  .busy .bt { color:#94a3b8; font-size:10.5px; }
+  .sel { background:rgba(59,130,246,.85); color:#fff; font-size:11px; font-weight:600; padding:3px 6px; line-height:1.3; z-index:4; cursor:pointer; box-shadow:0 1px 4px rgba(37,99,235,.35); }
+  .sel:hover { background:rgba(37,99,235,.92); }
+  .sel .x { position:absolute; top:2px; right:5px; font-weight:700; opacity:.75; }
+  .sel.tmp { background:rgba(59,130,246,.45); box-shadow:none; }
+
+  /* ---- share panel ---- */
+  .panel { border:1px solid var(--line); border-radius:14px; padding:14px; margin:14px 10px 20px; box-shadow:0 2px 10px rgba(0,0,0,.04); }
   .panel-head { display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
   .panel-head h2 { font-size:14px; font-weight:600; }
-  .panel-head .grow { flex:1; }
-  #preview { border:1px dashed var(--line); border-radius:10px; padding:12px; font-size:14px; line-height:1.7; min-height:60px; }
-  #preview a { color:var(--purple-dark); font-weight:600; text-decoration:underline; }
+  .panel-head input[type="text"] { border:1px solid var(--line); border-radius:8px; padding:7px 10px; font-size:13px; font-family:inherit; }
+  label.small { font-size:12px; color:var(--muted2); }
+  #preview { border:1px dashed var(--line); border-radius:10px; padding:12px; font-size:14px; line-height:1.7; min-height:56px; }
+  #preview a { color:var(--blue-dark); font-weight:600; text-decoration:underline; }
   .hint { font-size:12px; color:var(--muted); margin-top:8px; }
-  .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 18px; border-radius:999px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; }
+  .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 18px; border-radius:999px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:99; }
   .toast.show { opacity:1; }
-  .spin { display:inline-block; width:14px; height:14px; border:2px solid var(--line); border-top-color:var(--purple); border-radius:50%; animation:sp 0.8s linear infinite; vertical-align:-2px; margin-right:6px; }
+  .spin { display:inline-block; width:12px; height:12px; border:2px solid var(--line); border-top-color:var(--blue); border-radius:50%; animation:sp .8s linear infinite; vertical-align:-2px; margin-right:6px; }
   @keyframes sp { to { transform:rotate(360deg); } }
   .err { color:#b91c1c; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <svg class="logo" viewBox="35 215 640 105" xmlns="http://www.w3.org/2000/svg" aria-label="WeTransact">
-      <style>.lg1{fill:#7C6FF7}.lg2{fill:#2C1C6C}</style>
-      <circle class="lg1" cx="56.1" cy="231.01" r="9.71"/><circle class="lg1" cx="156.1" cy="231.01" r="9.71"/>
-      <path class="lg1" d="M270.34,267.48c-.55,0-1,.45-1,1v18.2c0,4.38-1.79,8.49-4.91,11.29-2.58,2.31-4.84,2.78-6.79,2.75,2.03-3.57,3.09-7.6,3.09-11.74l-.05-1.47c-.06-7.36-6.08-13.34-13.44-13.34s-13.29,5.9-13.44,13.18v1.04c0,4.32,1.14,8.56,3.29,12.32-2.99.05-5.85-1.03-8.09-3.08-2.42-2.21-3.8-5.36-3.8-8.63l-.03-20.61c0-.55-.45-1-1-1h-10.05c-.55,0-1,.45-1,1v20.08c0,12.34,8.97,22.73,20.87,24.16,4.61.56,9.23-.21,13.36-2.23,2.97,1.47,6.13,2.28,9.4,2.4.29.01.58.02.87.02,6.2,0,12.04-2.35,16.52-6.68,4.7-4.53,7.29-10.62,7.29-17.13l-.03-20.52c0-.55-.45-1-1-1h-10.05ZM247.22,300.05c-1.83-2.93-2.79-6.56-2.79-9.94l-.08-2.94c0-1.46,1.3-2.65,2.89-2.65s2.88,1.18,2.89,2.63v2.45c0,3.54-1.01,7.35-2.93,10.45Z"/>
-      <path class="lg1" d="M309.78,301.01c3.28,0,6.13-1.17,7.94-2.84.32-.3.8-.33,1.18-.11l8.86,5.09c.54.31.69,1.03.31,1.52-4.3,5.37-10.55,8.13-18.46,8.13-15.04,0-24.36-10.11-24.36-23.22s9.5-23.22,23.39-23.22c12.84,0,22.34,9.94,22.34,23.22,0,1.85-.18,3.61-.53,5.28h-31.22c1.67,4.57,5.72,6.16,10.55,6.16ZM317.87,285c-1.41-5.1-5.37-6.95-9.32-6.95-5.01,0-8.36,2.46-9.59,6.95h18.91Z"/>
-      <circle class="lg2" cx="106.06" cy="243.16" r="9.71"/>
-      <path class="lg2" d="M163.77,260.78c0-4.21-3.43-7.63-7.64-7.63s-7.64,3.43-7.64,7.64v25.54c0,6.98-2.53,13.61-7.12,18.67-7.25,7.98-13.51,8.67-18.67,8.28l-3.49-.26,1.85-2.97c3.85-6.21,5.89-13.36,5.89-20.66l-.08-2.65c-.09-11.41-9.44-20.69-20.84-20.69s-20.52,9.02-20.84,20.24v2.01c0,7.67,2.16,15.19,6.23,21.73l1.83,2.93-3.44.3c-6.82.6-13.34-1.6-18.37-6.2-4.95-4.53-7.79-10.97-7.79-17.66l-.05-28.68c0-4.21-3.43-7.63-7.64-7.63s-7.64,3.43-7.64,7.64v29.99c0,14.97,8.63,28.42,21.97,34.25,11.77,5.15,24.19,4.99,34.96-.44l.96-.48.96.49c5.02,2.56,10.37,3.96,15.89,4.16,10.73.38,20.97-3.52,28.72-11,7.76-7.49,12.04-17.54,12.04-28.29l-.05-28.6ZM111.15,288.63c0,6.48-1.88,12.66-5.15,17.9-3.11-4.95-4.94-10.77-4.94-17.04l-.08-3.66h0c0-2.81,2.28-5.09,5.09-5.09s5.09,2.28,5.09,5.09h0v2.8Z"/>
-      <path class="lg2" d="M362.01,268.42v10.61c0,.57-.46,1.03-1.03,1.03h-8.03v15.57c0,3.54,2.85,4.08,7.99,3.84.58-.03,1.07.44,1.07,1.03v9.94c0,.53-.41.98-.94,1.03-16.48,1.47-21.31-3.75-21.31-15.83v-15.57h-6.01c-.57,0-1.03-.46-1.03-1.03v-10.61c0-.57.46-1.03,1.03-1.03h27.23c.57,0,1.03.46,1.03,1.03Z"/>
-      <path class="lg2" d="M393.2,267.77v12.73c0,.6-.5,1.07-1.1,1.02-5.34-.43-12.1,2.02-12.1,10.16v18.85c0,.57-.46,1.03-1.03,1.03h-11.13c-.57,0-1.03-.46-1.03-1.03v-41.92c0-.57.46-1.03,1.03-1.03h11.13c.57,0,1.03.46,1.03,1.03v6.8c1.64-5.5,6.88-8.32,12.08-8.67.6-.04,1.12.43,1.12,1.03Z"/>
-      <path class="lg2" d="M442.28,268.62v41.92c0,.57-.46,1.03-1.03,1.03h-11.13c-.57,0-1.03-.46-1.03-1.03v-3.1c-2.9,3.34-7.21,5.36-13.1,5.36-11.52,0-21.02-10.11-21.02-23.22s9.5-23.22,21.02-23.22c5.89,0,10.2,2.02,13.1,5.36v-3.1c0-.57.46-1.03,1.03-1.03h11.13c.57,0,1.03.46,1.03,1.03ZM429.09,289.57c0-6.6-4.4-10.73-10.47-10.73s-10.47,4.13-10.47,10.73,4.4,10.73,10.47,10.73,10.47-4.13,10.47-10.73Z"/>
-      <path class="lg2" d="M490.62,284.56v25.97c0,.57-.46,1.03-1.03,1.03h-11.13c-.57,0-1.03-.46-1.03-1.03v-24.04c0-5.45-3.43-8-7.65-8-4.84,0-8.18,2.81-8.18,9.06v22.98c0,.57-.46,1.03-1.03,1.03h-11.13c-.57,0-1.03-.46-1.03-1.03v-41.92c0-.57.46-1.03,1.03-1.03h11.13c.57,0,1.03.46,1.03,1.03v3.1c2.38-3.25,6.77-5.36,12.58-5.36,8.88,0,16.45,6.33,16.45,18.21Z"/>
-      <path class="lg2" d="M531.25,298.37c0,10.11-8.79,14.42-18.29,14.42-8.42,0-14.91-3.07-18.46-9.58-.26-.49-.07-1.1.41-1.37l9.56-5.44c.52-.3,1.18-.08,1.43.46,1.28,2.69,3.61,4.15,7.06,4.15,3.17,0,4.75-.97,4.75-2.73,0-4.84-21.64-2.29-21.64-17.5,0-9.59,8.09-14.42,17.24-14.42,6.76,0,12.81,2.85,16.56,8.48.33.5.14,1.17-.38,1.46l-9.42,5.08c-.47.25-1.05.1-1.35-.35-1.2-1.84-2.87-3.06-5.41-3.06-2.29,0-3.69.88-3.69,2.46,0,5.01,21.64,1.67,21.64,17.94Z"/>
-      <path class="lg2" d="M581.64,268.62v41.92c0,.57-.46,1.03-1.03,1.03h-11.13c-.57,0-1.03-.46-1.03-1.03v-3.1c-2.9,3.34-7.21,5.36-13.1,5.36-11.52,0-21.02-10.11-21.02-23.22s9.5-23.22,21.02-23.22c5.89,0,10.2,2.02,13.1,5.36v-3.1c0-.57.46-1.03,1.03-1.03h11.13c.57,0,1.03.46,1.03,1.03ZM568.45,289.57c0-6.6-4.4-10.73-10.47-10.73s-10.47,4.13-10.47,10.73,4.4,10.73,10.47,10.73,10.47-4.13,10.47-10.73Z"/>
-      <path class="lg2" d="M585.77,289.57c0-13.1,9.94-23.22,23.31-23.22,8.15,0,15.42,4.09,19.35,10.36.3.49.13,1.13-.37,1.42l-9.72,5.64c-.47.27-1.08.13-1.37-.33-1.63-2.57-4.56-4.08-8.06-4.08-5.72,0-9.94,4.13-9.94,10.2s4.22,10.2,9.94,10.2c3.49,0,6.48-1.5,8.07-4.06.29-.47.9-.62,1.37-.34l9.71,5.56c.5.28.68.93.38,1.42-3.92,6.35-11.11,10.45-19.35,10.45-13.37,0-23.31-10.11-23.31-23.22Z"/>
-      <path class="lg2" d="M660.27,268.42v10.61c0,.57-.46,1.03-1.03,1.03h-8.03v15.57c0,3.54,2.85,4.08,7.99,3.84.58-.03,1.07.44,1.07,1.03v9.94c0,.53-.41.98-.94,1.03-16.48,1.47-21.31-3.75-21.31-15.83v-15.57h-6.01c-.57,0-1.03-.46-1.03-1.03v-10.61c0-.57.46-1.03,1.03-1.03h27.23c.57,0,1.03.46,1.03,1.03Z"/>
-    </svg>
-    <span class="sub">Availability</span>
-    <div class="grow"></div>
-    <span class="who" id="who"></span>
-    <button class="linklike" id="signOut" style="display:none">Sign out</button>
-  </header>
-
+<div class="app">
   <div class="signin" id="signinView">
     <h2>Share your availability in seconds</h2>
-    <p>Pick free slots from your Outlook calendar and copy hyperlinked booking times into any email.</p>
+    <p>Drag on your calendar to paint booking slots and copy hyperlinked times into any email.</p>
     <button class="btn primary big" id="signInBtn">Sign in with Microsoft</button>
     <p class="hint" id="signinErr"></p>
   </div>
 
   <div id="appView" style="display:none">
-    <div class="toolbar">
-      <div class="seg" id="weekSeg">
-        <button data-w="0" class="on">This week</button>
-        <button data-w="1">Next week</button>
-        <button data-w="2">Week after</button>
+    <div class="top">
+      <svg class="logo" viewBox="35 215 640 105" xmlns="http://www.w3.org/2000/svg" aria-label="WeTransact">
+        <style>.lg1{fill:#7C6FF7}.lg2{fill:#2C1C6C}</style>
+        <circle class="lg1" cx="56.1" cy="231.01" r="9.71"/><circle class="lg1" cx="156.1" cy="231.01" r="9.71"/>
+        <path class="lg1" d="M270.34,267.48c-.55,0-1,.45-1,1v18.2c0,4.38-1.79,8.49-4.91,11.29-2.58,2.31-4.84,2.78-6.79,2.75,2.03-3.57,3.09-7.6,3.09-11.74l-.05-1.47c-.06-7.36-6.08-13.34-13.44-13.34s-13.29,5.9-13.44,13.18v1.04c0,4.32,1.14,8.56,3.29,12.32-2.99.05-5.85-1.03-8.09-3.08-2.42-2.21-3.8-5.36-3.8-8.63l-.03-20.61c0-.55-.45-1-1-1h-10.05c-.55,0-1,.45-1,1v20.08c0,12.34,8.97,22.73,20.87,24.16,4.61.56,9.23-.21,13.36-2.23,2.97,1.47,6.13,2.28,9.4,2.4.29.01.58.02.87.02,6.2,0,12.04-2.35,16.52-6.68,4.7-4.53,7.29-10.62,7.29-17.13l-.03-20.52c0-.55-.45-1-1-1h-10.05ZM247.22,300.05c-1.83-2.93-2.79-6.56-2.79-9.94l-.08-2.94c0-1.46,1.3-2.65,2.89-2.65s2.88,1.18,2.89,2.63v2.45c0,3.54-1.01,7.35-2.93,10.45Z"/>
+        <path class="lg1" d="M309.78,301.01c3.28,0,6.13-1.17,7.94-2.84.32-.3.8-.33,1.18-.11l8.86,5.09c.54.31.69,1.03.31,1.52-4.3,5.37-10.55,8.13-18.46,8.13-15.04,0-24.36-10.11-24.36-23.22s9.5-23.22,23.39-23.22c12.84,0,22.34,9.94,22.34,23.22,0,1.85-.18,3.61-.53,5.28h-31.22c1.67,4.57,5.72,6.16,10.55,6.16ZM317.87,285c-1.41-5.1-5.37-6.95-9.32-6.95-5.01,0-8.36,2.46-9.59,6.95h18.91Z"/>
+        <circle class="lg2" cx="106.06" cy="243.16" r="9.71"/>
+        <path class="lg2" d="M163.77,260.78c0-4.21-3.43-7.63-7.64-7.63s-7.64,3.43-7.64,7.64v25.54c0,6.98-2.53,13.61-7.12,18.67-7.25,7.98-13.51,8.67-18.67,8.28l-3.49-.26,1.85-2.97c3.85-6.21,5.89-13.36,5.89-20.66l-.08-2.65c-.09-11.41-9.44-20.69-20.84-20.69s-20.52,9.02-20.84,20.24v2.01c0,7.67,2.16,15.19,6.23,21.73l1.83,2.93-3.44.3c-6.82.6-13.34-1.6-18.37-6.2-4.95-4.53-7.79-10.97-7.79-17.66l-.05-28.68c0-4.21-3.43-7.63-7.64-7.63s-7.64,3.43-7.64,7.64v29.99c0,14.97,8.63,28.42,21.97,34.25,11.77,5.15,24.19,4.99,34.96-.44l.96-.48.96.49c5.02,2.56,10.37,3.96,15.89,4.16,10.73.38,20.97-3.52,28.72-11,7.76-7.49,12.04-17.54,12.04-28.29l-.05-28.6ZM111.15,288.63c0,6.48-1.88,12.66-5.15,17.9-3.11-4.95-4.94-10.77-4.94-17.04l-.08-3.66h0c0-2.81,2.28-5.09,5.09-5.09s5.09,2.28,5.09,5.09h0v2.8Z"/>
+        <path class="lg2" d="M362.01,268.42v10.61c0,.57-.46,1.03-1.03,1.03h-8.03v15.57c0,3.54,2.85,4.08,7.99,3.84.58-.03,1.07.44,1.07,1.03v9.94c0,.53-.41.98-.94,1.03-16.48,1.47-21.31-3.75-21.31-15.83v-15.57h-6.01c-.57,0-1.03-.46-1.03-1.03v-10.61c0-.57.46-1.03,1.03-1.03h27.23c.57,0,1.03.46,1.03,1.03Z"/>
+        <path class="lg2" d="M393.2,267.77v12.73c0,.6-.5,1.07-1.1,1.02-5.34-.43-12.1,2.02-12.1,10.16v18.85c0,.57-.46,1.03-1.03,1.03h-11.13c-.57,0-1.03-.46-1.03-1.03v-41.92c0-.57.46-1.03,1.03-1.03h11.13c.57,0,1.03.46,1.03,1.03v6.8c1.64-5.5,6.88-8.32,12.08-8.67.6-.04,1.12.43,1.12,1.03Z"/>
+        <path class="lg2" d="M442.28,268.62v41.92c0,.57-.46,1.03-1.03,1.03h-11.13c-.57,0-1.03-.46-1.03-1.03v-3.1c-2.9,3.34-7.21,5.36-13.1,5.36-11.52,0-21.02-10.11-21.02-23.22s9.5-23.22,21.02-23.22c5.89,0,10.2,2.02,13.1,5.36v-3.1c0-.57.46-1.03,1.03-1.03h11.13c.57,0,1.03.46,1.03,1.03ZM429.09,289.57c0-6.6-4.4-10.73-10.47-10.73s-10.47,4.13-10.47,10.73,4.4,10.73,10.47,10.73,10.47-4.13,10.47-10.73Z"/>
+        <path class="lg2" d="M490.62,284.56v25.97c0,.57-.46,1.03-1.03,1.03h-11.13c-.57,0-1.03-.46-1.03-1.03v-24.04c0-5.45-3.43-8-7.65-8-4.84,0-8.18,2.81-8.18,9.06v22.98c0,.57-.46,1.03-1.03,1.03h-11.13c-.57,0-1.03-.46-1.03-1.03v-41.92c0-.57.46-1.03,1.03-1.03h11.13c.57,0,1.03.46,1.03,1.03v3.1c2.38-3.25,6.77-5.36,12.58-5.36,8.88,0,16.45,6.33,16.45,18.21Z"/>
+        <path class="lg2" d="M531.25,298.37c0,10.11-8.79,14.42-18.29,14.42-8.42,0-14.91-3.07-18.46-9.58-.26-.49-.07-1.1.41-1.37l9.56-5.44c.52-.3,1.18-.08,1.43.46,1.28,2.69,3.61,4.15,7.06,4.15,3.17,0,4.75-.97,4.75-2.73,0-4.84-21.64-2.29-21.64-17.5,0-9.59,8.09-14.42,17.24-14.42,6.76,0,12.81,2.85,16.56,8.48.33.5.14,1.17-.38,1.46l-9.42,5.08c-.47.25-1.05.1-1.35-.35-1.2-1.84-2.87-3.06-5.41-3.06-2.29,0-3.69.88-3.69,2.46,0,5.01,21.64,1.67,21.64,17.94Z"/>
+        <path class="lg2" d="M581.64,268.62v41.92c0,.57-.46,1.03-1.03,1.03h-11.13c-.57,0-1.03-.46-1.03-1.03v-3.1c-2.9,3.34-7.21,5.36-13.1,5.36-11.52,0-21.02-10.11-21.02-23.22s9.5-23.22,21.02-23.22c5.89,0,10.2,2.02,13.1,5.36v-3.1c0-.57.46-1.03,1.03-1.03h11.13c.57,0,1.03.46,1.03,1.03ZM568.45,289.57c0-6.6-4.4-10.73-10.47-10.73s-10.47,4.13-10.47,10.73,4.4,10.73,10.47,10.73,10.47-4.13,10.47-10.73Z"/>
+        <path class="lg2" d="M585.77,289.57c0-13.1,9.94-23.22,23.31-23.22,8.15,0,15.42,4.09,19.35,10.36.3.49.13,1.13-.37,1.42l-9.72,5.64c-.47.27-1.08.13-1.37-.33-1.63-2.57-4.56-4.08-8.06-4.08-5.72,0-9.94,4.13-9.94,10.2s4.22,10.2,9.94,10.2c3.49,0,6.48-1.5,8.07-4.06.29-.47.9-.62,1.37-.34l9.71,5.56c.5.28.68.93.38,1.42-3.92,6.35-11.11,10.45-19.35,10.45-13.37,0-23.31-10.11-23.31-23.22Z"/>
+        <path class="lg2" d="M660.27,268.42v10.61c0,.57-.46,1.03-1.03,1.03h-8.03v15.57c0,3.54,2.85,4.08,7.99,3.84.58-.03,1.07.44,1.07,1.03v9.94c0,.53-.41.98-.94,1.03-16.48,1.47-21.31-3.75-21.31-15.83v-15.57h-6.01c-.57,0-1.03-.46-1.03-1.03v-10.61c0-.57.46-1.03,1.03-1.03h27.23c.57,0,1.03.46,1.03,1.03Z"/>
+      </svg>
+      <div class="month">
+        <div class="m" id="monthLabel">June 2026</div>
+        <div class="tzline" id="tzLine">(WEST) Europe/Lisbon</div>
       </div>
-      <div class="seg" id="durSeg">
-        <button data-d="15">15m</button>
-        <button data-d="30" class="on">30m</button>
-        <button data-d="60">60m</button>
-      </div>
-      <label class="small">Hours
-        <select id="hStart"></select> – <select id="hEnd"></select>
-      </label>
-      <label class="small">Timezone
-        <select id="tzSel"></select>
-      </label>
+      <button class="btn" id="todayBtn">Today</button>
+      <button class="navarr" id="prevW">&#8249;</button>
+      <button class="navarr" id="nextW">&#8250;</button>
       <div class="grow"></div>
-      <button class="btn" id="clearBtn">Clear</button>
+      <span class="who" id="who"></span>
+      <button class="linklike" id="signOut">Sign out</button>
     </div>
+    <div class="statusline" id="status"></div>
 
-    <div class="status" id="status"></div>
-    <div class="cal" id="cal"></div>
+    <div class="cal">
+      <div class="cal-head" id="calHead"></div>
+      <div class="scroller" id="scroller">
+        <div class="cal-body" id="calBody"></div>
+      </div>
+    </div>
 
     <div class="panel">
       <div class="panel-head">
         <h2>Share availability</h2>
         <label class="small">Invite title <input type="text" id="subj" size="26"></label>
         <div class="grow"></div>
+        <button class="btn" id="clearBtn">Clear</button>
         <button class="btn primary" id="copyBtn">Copy for email</button>
       </div>
-      <div id="preview"><span style="color:var(--muted)">Click free slots above — a hyperlinked snippet appears here. Each link opens a pre-filled Outlook invite addressed to you; the recipient just hits Send.</span></div>
-      <div class="hint">Paste into any email — links are preserved. Times shown in <b id="tzLabel"></b>. Tinted blocks are your existing meetings (only you see them).</div>
+      <div id="preview"><span style="color:var(--muted2)">Click or drag on the calendar to paint availability slots — a hyperlinked snippet appears here. Each link opens a pre-filled Outlook invite addressed to you; the recipient just hits Send.</span></div>
+      <div class="hint">Click a painted slot to remove it. Standard slots are 30 min; drag for longer (snaps to 15 min). Times shown in <b id="tzLabel"></b>.</div>
     </div>
   </div>
+</div>
+<div class="tzpop" id="tzPop">
+  <input type="text" id="tzSearch" placeholder="Search timezone — CET, EST, London…">
+  <div class="tzlist" id="tzList"></div>
 </div>
 <div class="toast" id="toast">Copied</div>
 
 <script>
 // ====== CONFIG ======
-const CONFIG = {
-  clientId: "d64e24c4-3c00-4b04-9ab0-e337d5fcc34b",
-  tenantId: "wetransact.io",
-};
+const CONFIG = { clientId: "d64e24c4-3c00-4b04-9ab0-e337d5fcc34b", tenantId: "wetransact.io" };
 // ====================
 
+// === DATA LAYER (web) ===
 const pca = new msal.PublicClientApplication({
   auth: {
     clientId: CONFIG.clientId,
@@ -171,35 +184,8 @@ const pca = new msal.PublicClientApplication({
 });
 const SCOPES = ["User.Read", "Calendars.Read.Shared"];
 let account = null;
+let ME = { name: "", email: "" };
 
-const LOCAL_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
-const TZ_LIST = [
-  "America/Los_Angeles","America/Denver","America/Chicago","America/New_York","America/Toronto",
-  "America/Sao_Paulo","Europe/London","Europe/Dublin","Europe/Paris","Europe/Amsterdam","Europe/Brussels",
-  "Europe/Berlin","Europe/Madrid","Europe/Lisbon","Europe/Stockholm","Europe/Helsinki","Europe/Athens",
-  "Europe/Istanbul","Asia/Dubai","Asia/Karachi","Asia/Kolkata","Asia/Singapore","Asia/Hong_Kong",
-  "Asia/Shanghai","Asia/Tokyo","Asia/Seoul","Australia/Sydney","Australia/Perth","Pacific/Auckland","UTC"
-];
-const PPM = 1.1; // pixels per minute
-
-const S = {
-  week: 0, dur: 30,
-  hStart: +(localStorage.getItem("hStart") || 9),
-  hEnd:   +(localStorage.getItem("hEnd")   || 18),
-  tz: localStorage.getItem("tz") || LOCAL_TZ,
-  slots: {}, events: {}, selected: new Set(),
-};
-
-function fmt(d, opts){ return new Intl.DateTimeFormat(undefined, Object.assign({timeZone:S.tz}, opts)).format(d); }
-function fmtTime(d){ return fmt(d, {hour:"numeric", minute:"2-digit"}); }
-function dayKey(d){ return new Intl.DateTimeFormat("en-CA", {timeZone:S.tz, year:"numeric", month:"2-digit", day:"2-digit"}).format(d); }
-function tzLongName(){
-  try { return new Intl.DateTimeFormat("en", {timeZone:S.tz, timeZoneName:"long"}).formatToParts(new Date()).find(p=>p.type==="timeZoneName").value + " (" + S.tz.replace(/_/g," ") + ")"; }
-  catch(e){ return S.tz; }
-}
-function updateTzLabel(){ document.getElementById("tzLabel").textContent = tzLongName(); }
-
-// ---- auth ----
 async function init(){
   await pca.initialize();
   try {
@@ -207,253 +193,326 @@ async function init(){
     if (resp && resp.account) pca.setActiveAccount(resp.account);
   } catch(e){ showSigninErr(e); }
   const accts = pca.getAllAccounts();
-  if (accts.length) { account = accts[0]; pca.setActiveAccount(account); onSignedIn(); }
+  if (accts.length) { account = accts[0]; pca.setActiveAccount(account); ME = { name: account.name, email: account.username }; onSignedIn(); }
 }
-document.getElementById("signInBtn").onclick = () =>
-  pca.loginRedirect({ scopes: SCOPES }).catch(showSigninErr);
-document.getElementById("signOut").onclick = () =>
-  pca.logoutRedirect({ account });
-function showSigninErr(e){
-  document.getElementById("signinErr").innerHTML = '<span class="err">' + (e.errorMessage || e.message || e) + "</span>";
-}
-function onSignedIn(){
-  document.getElementById("signinView").style.display = "none";
-  document.getElementById("appView").style.display = "";
-  document.getElementById("signOut").style.display = "";
-  document.getElementById("who").textContent = account.name + " · " + account.username;
-  document.getElementById("subj").value = "Meeting with " + account.name;
-  load();
-}
+document.getElementById("signInBtn").onclick = () => pca.loginRedirect({ scopes: SCOPES }).catch(showSigninErr);
+document.getElementById("signOut").onclick = () => pca.logoutRedirect({ account });
+function showSigninErr(e){ document.getElementById("signinErr").innerHTML = '<span class="err">' + (e.errorMessage || e.message || e) + "</span>"; }
 async function token(){
   try { return (await pca.acquireTokenSilent({ scopes: SCOPES, account })).accessToken; }
   catch(e){ await pca.acquireTokenRedirect({ scopes: SCOPES }); }
 }
-
-// ---- UI controls ----
-const hs = document.getElementById("hStart"), he = document.getElementById("hEnd");
-for (let h = 6; h <= 22; h++){ hs.add(new Option(fmtHourLocal(h), h)); he.add(new Option(fmtHourLocal(h), h)); }
-hs.value = S.hStart; he.value = S.hEnd;
-hs.onchange = () => { S.hStart = +hs.value; localStorage.setItem("hStart", hs.value); load(); };
-he.onchange = () => { S.hEnd = +he.value; localStorage.setItem("hEnd", he.value); load(); };
-function fmtHourLocal(h){ return new Date(2000,0,1,h).toLocaleTimeString([], {hour:"numeric"}); }
-
-const tzSel = document.getElementById("tzSel");
-const tzOptions = TZ_LIST.includes(LOCAL_TZ) ? TZ_LIST : [LOCAL_TZ].concat(TZ_LIST);
-tzOptions.forEach(z => tzSel.add(new Option(z.replace(/_/g," "), z)));
-tzSel.value = S.tz;
-tzSel.onchange = () => {
-  S.tz = tzSel.value; localStorage.setItem("tz", S.tz);
-  updateTzLabel(); renderGrid(); renderPreview();
-};
-updateTzLabel();
-
-document.getElementById("weekSeg").onclick = e => seg(e, "weekSeg", b => { S.week = +b.dataset.w; load(); });
-document.getElementById("durSeg").onclick  = e => seg(e, "durSeg",  b => { S.dur  = +b.dataset.d; load(); });
-function seg(e, id, fn){
-  const b = e.target.closest("button"); if (!b) return;
-  document.querySelectorAll("#"+id+" button").forEach(x => x.classList.remove("on"));
-  b.classList.add("on"); fn(b);
+async function fetchEvents(weekStart, weekEnd){
+  const tk = await token();
+  if (!tk) return [];
+  const r = await fetch("https://graph.microsoft.com/v1.0/me/calendarView?" + new URLSearchParams({
+      startDateTime: weekStart.toISOString(), endDateTime: weekEnd.toISOString(),
+      $select: "subject,start,end,showAs,isAllDay", $orderby: "start/dateTime", $top: "150",
+    }), { headers: { Authorization: "Bearer " + tk, Prefer: 'outlook.timezone="UTC"' } });
+  if (!r.ok) throw new Error("Graph " + r.status);
+  const obj = await r.json();
+  return (obj.value || [])
+    .filter(ev => !ev.isAllDay && ev.showAs !== "free")
+    .map(ev => ({ subject: ev.subject || "(busy)", start: new Date(ev.start.dateTime + "Z"), end: new Date(ev.end.dateTime + "Z") }));
 }
-document.getElementById("clearBtn").onclick = () => { S.selected.clear(); renderGrid(); renderPreview(); };
-document.getElementById("subj").oninput = renderPreview;
+function onSignedIn(){
+  document.getElementById("signinView").style.display = "none";
+  document.getElementById("appView").style.display = "";
+  document.getElementById("who").textContent = ME.name + " · " + ME.email;
+  document.getElementById("subj").value = "Meeting with " + ME.name;
+  load();
+}
+init();
+// === END DATA LAYER ===
 
-// ---- dates ----
-function mondayOf(weekOffset){
+// ---- timezones (main abbreviations, searchable) ----
+const TZS = [
+  { ab:"PST", name:"America/Los_Angeles", city:"Los Angeles · Pacific", alias:"pst pdt pacific la california san francisco seattle" },
+  { ab:"MST", name:"America/Denver", city:"Denver · Mountain", alias:"mst mdt mountain" },
+  { ab:"CST", name:"America/Chicago", city:"Chicago · Central US", alias:"cst cdt central texas austin dallas" },
+  { ab:"EST", name:"America/New_York", city:"New York · Eastern", alias:"est edt eastern nyc boston miami toronto" },
+  { ab:"BRT", name:"America/Sao_Paulo", city:"São Paulo", alias:"brt brazil brasil" },
+  { ab:"GMT", name:"Europe/London", city:"London", alias:"gmt bst uk britain england london" },
+  { ab:"WET", name:"Europe/Lisbon", city:"Lisbon", alias:"wet west portugal lisbon lisboa" },
+  { ab:"CET", name:"Europe/Amsterdam", city:"Amsterdam · Central Europe", alias:"cet cest central europe netherlands amsterdam brussels paris berlin madrid rome" },
+  { ab:"EET", name:"Europe/Athens", city:"Athens · Eastern Europe", alias:"eet eest athens helsinki bucharest" },
+  { ab:"TRT", name:"Europe/Istanbul", city:"Istanbul", alias:"trt turkey istanbul" },
+  { ab:"GST", name:"Asia/Dubai", city:"Dubai", alias:"gst uae dubai gulf" },
+  { ab:"PKT", name:"Asia/Karachi", city:"Karachi", alias:"pkt pakistan karachi" },
+  { ab:"IST", name:"Asia/Kolkata", city:"India", alias:"ist india kolkata mumbai delhi bangalore" },
+  { ab:"SGT", name:"Asia/Singapore", city:"Singapore · APAC", alias:"sgt singapore apac" },
+  { ab:"HKT", name:"Asia/Hong_Kong", city:"Hong Kong · APAC", alias:"hkt hong kong apac" },
+  { ab:"CST", name:"Asia/Shanghai", city:"China", alias:"china shanghai beijing apac" },
+  { ab:"JST", name:"Asia/Tokyo", city:"Tokyo", alias:"jst japan tokyo apac" },
+  { ab:"KST", name:"Asia/Seoul", city:"Seoul", alias:"kst korea seoul apac" },
+  { ab:"AEST", name:"Australia/Sydney", city:"Sydney · APAC", alias:"aest aedt australia sydney melbourne apac" },
+  { ab:"AWST", name:"Australia/Perth", city:"Perth", alias:"awst perth australia" },
+  { ab:"NZST", name:"Pacific/Auckland", city:"Auckland", alias:"nzst nzdt new zealand auckland" },
+  { ab:"UTC", name:"UTC", city:"Coordinated Universal Time", alias:"utc universal" },
+];
+const LOCAL_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const PPM = 0.8;          // px per minute
+const SNAP = 15;          // minutes
+const DEFAULT_LEN = 30;   // standard call
+
+const S = {
+  week: 0,
+  tz: localStorage.getItem("tz2") || LOCAL_TZ,
+  events: [], sel: [],    // sel: [{start:Date,end:Date}]
+};
+
+function tzAbbr(zone){
+  const t = TZS.find(z => z.name === zone);
+  if (t) return liveAbbr(zone) || t.ab;
+  return liveAbbr(zone) || zone.split("/").pop().replace(/_/g," ");
+}
+function liveAbbr(zone){
+  try {
+    const p = new Intl.DateTimeFormat("en-GB", {timeZone:zone, timeZoneName:"short"}).formatToParts(new Date()).find(x=>x.type==="timeZoneName").value;
+    return /^[A-Z]{2,5}$/.test(p) ? p : null;  // only real abbreviations (CET, BST…), not GMT+5
+  } catch(e){ return null; }
+}
+function fmt(d, opts){ return new Intl.DateTimeFormat("en-US", Object.assign({timeZone:S.tz}, opts)).format(d); }
+function fmtTime(d){ return fmt(d, {hour:"numeric", minute:"2-digit"}); }
+function tzTitleLine(){ return "(" + tzAbbr(S.tz) + ") " + S.tz.replace(/_/g," "); }
+function tzLongName(){
+  try { return new Intl.DateTimeFormat("en", {timeZone:S.tz, timeZoneName:"long"}).formatToParts(new Date()).find(p=>p.type==="timeZoneName").value + " — " + tzAbbr(S.tz); }
+  catch(e){ return S.tz; }
+}
+
+// ---- tz popover ----
+const tzPop = document.getElementById("tzPop"), tzSearch = document.getElementById("tzSearch"), tzList = document.getElementById("tzList");
+function openTzPop(anchor){
+  const r = anchor.getBoundingClientRect();
+  tzPop.style.display = "block";
+  tzPop.style.left = Math.min(r.left, innerWidth - 320) + "px";
+  tzPop.style.top = (r.bottom + 6 + scrollY) + "px";
+  tzSearch.value = ""; renderTzList(""); tzSearch.focus();
+}
+document.addEventListener("click", e => {
+  if (!tzPop.contains(e.target) && e.target.id !== "tzLine" && !e.target.classList.contains("tzchip")) tzPop.style.display = "none";
+});
+tzSearch.oninput = () => renderTzList(tzSearch.value.trim().toLowerCase());
+function renderTzList(q){
+  const items = TZS.filter(z => !q || z.ab.toLowerCase().includes(q) || z.name.toLowerCase().includes(q) || z.city.toLowerCase().includes(q) || z.alias.includes(q));
+  tzList.innerHTML = "";
+  items.forEach(z => {
+    const d = document.createElement("div"); d.className = "tzitem";
+    d.innerHTML = '<span class="ab"></span><span class="nm"></span><span class="ct"></span>';
+    d.querySelector(".ab").textContent = z.ab;
+    d.querySelector(".nm").textContent = z.city;
+    d.querySelector(".ct").textContent = fmtInZone(z.name);
+    d.onclick = () => { S.tz = z.name; localStorage.setItem("tz2", z.name); tzPop.style.display = "none"; renderAll(); };
+    tzList.appendChild(d);
+  });
+  if (!items.length) tzList.innerHTML = '<div class="tzitem" style="color:var(--muted)">No match</div>';
+}
+function fmtInZone(zone){
+  try { return new Intl.DateTimeFormat("en-US", {timeZone:zone, hour:"numeric", minute:"2-digit"}).format(new Date()); } catch(e){ return ""; }
+}
+document.getElementById("tzLine").onclick = e => openTzPop(e.target);
+
+// ---- week ----
+function sundayOf(weekOffset){
   const now = new Date();
   const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const dow = (d.getDay() + 6) % 7;
-  d.setDate(d.getDate() - dow + weekOffset * 7);
+  d.setDate(d.getDate() - d.getDay() + weekOffset * 7);
   return d;
 }
+function weekDays(){
+  const sun = sundayOf(S.week), days = [];
+  for (let i = 0; i < 7; i++){ const d = new Date(sun); d.setDate(d.getDate()+i); days.push(d); }
+  return days;
+}
+document.getElementById("todayBtn").onclick = () => { S.week = 0; load(); };
+document.getElementById("prevW").onclick = () => { S.week--; load(); };
+document.getElementById("nextW").onclick = () => { S.week++; load(); };
+document.getElementById("clearBtn").onclick = () => { S.sel = []; renderAll(); };
+document.getElementById("subj").oninput = renderPreview;
 
-// ---- load from Microsoft Graph ----
+// ---- load events ----
 let loadSeq = 0;
 async function load(){
   const seq = ++loadSeq;
-  S.slots = {}; S.events = {}; S.selected.clear();
-  const mon = mondayOf(S.week);
-  const days = [];
-  for (let i = 0; i < 5; i++){ const d = new Date(mon); d.setDate(d.getDate()+i); days.push(d); }
+  const days = weekDays();
+  const weekStart = new Date(days[0]); weekStart.setHours(0,0,0,0);
+  const weekEnd = new Date(days[6]); weekEnd.setDate(weekEnd.getDate()+1); weekEnd.setHours(0,0,0,0);
   status('<span class="spin"></span>Syncing your Outlook calendar…');
-  renderGrid(days);
-
-  const tk = await token();
-  if (!tk) return;
-  const now = new Date();
-
-  const weekStart = new Date(mon); weekStart.setHours(0,0,0,0);
-  const weekEnd = new Date(mon); weekEnd.setDate(weekEnd.getDate()+5); weekEnd.setHours(0,0,0,0);
-  const eventsP = fetch("https://graph.microsoft.com/v1.0/me/calendarView?" + new URLSearchParams({
-      startDateTime: weekStart.toISOString(), endDateTime: weekEnd.toISOString(),
-      $select: "subject,start,end,showAs,isAllDay", $orderby: "start/dateTime", $top: "100",
-    }), { headers: { Authorization: "Bearer " + tk, Prefer: 'outlook.timezone="UTC"' } })
-    .then(r => r.ok ? r.json() : Promise.reject(new Error("Graph " + r.status)))
-    .then(obj => {
-      (obj.value || []).forEach(ev => {
-        if (ev.isAllDay || ev.showAs === "free") return;
-        const st = new Date(ev.start.dateTime + "Z"), en = new Date(ev.end.dateTime + "Z");
-        const k = dayKeyLocal(st);
-        (S.events[k] = S.events[k] || []).push({ subject: ev.subject || "(busy)", start: st, end: en });
-      });
-    }).catch(e => console.error("calendarView", e));
-
-  const slotsP = Promise.all(days.map(async d => {
-    let start = new Date(d); start.setHours(S.hStart,0,0,0);
-    const end = new Date(d); end.setHours(S.hEnd,0,0,0);
-    if (end <= now) return;
-    let s2 = start < now ? new Date(Math.ceil(now.getTime() / (30*60000)) * 30*60000) : start;
-    if (s2 >= end) return;
-    try {
-      const r = await fetch("https://graph.microsoft.com/v1.0/me/findMeetingTimes", {
-        method: "POST",
-        headers: { Authorization: "Bearer " + tk, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          timeConstraint: { activityDomain: "unrestricted", timeSlots: [{
-            start: { dateTime: s2.toISOString().slice(0,19), timeZone: "UTC" },
-            end:   { dateTime: end.toISOString().slice(0,19), timeZone: "UTC" },
-          }]},
-          meetingDuration: "PT" + S.dur + "M",
-          maxCandidates: 50,
-          returnSuggestionReasons: false,
-        }),
-      });
-      if (!r.ok) throw new Error("Graph " + r.status);
-      const obj = await r.json();
-      (obj.meetingTimeSuggestions || [])
-        .filter(s => s.organizerAvailability === "free")
-        .forEach(s => {
-          const st = new Date(s.meetingTimeSlot.start.dateTime + "Z");
-          const en = new Date(s.meetingTimeSlot.end.dateTime + "Z");
-          const k = dayKeyLocal(st);
-          (S.slots[k] = S.slots[k] || []).push({ startISO: st.toISOString(), endISO: en.toISOString(), start: st, end: en });
-        });
-    } catch(err){ console.error(err); }
-  }));
-
-  await Promise.all([eventsP, slotsP]);
-  if (seq !== loadSeq) return;
-  Object.values(S.slots).forEach(a => a.sort((x,y) => x.start - y.start));
-  Object.values(S.events).forEach(a => a.sort((x,y) => x.start - y.start));
-  const total = Object.values(S.slots).reduce((n,a)=>n+a.length,0);
-  const nEv = Object.values(S.events).reduce((n,a)=>n+a.length,0);
-  status(total || nEv
-    ? total + " free slots · " + nEv + " existing meetings this week. Click slots to select."
-    : "No free slots in this range. Try different hours or another week.");
-  renderGrid(days);
-  renderPreview();
+  renderAll();
+  try {
+    const evs = await fetchEvents(weekStart, weekEnd);
+    if (seq !== loadSeq) return;
+    S.events = evs;
+    status(evs.length + " meetings on your calendar this week · click or drag on the grid to paint availability.");
+  } catch(e){ console.error(e); status('<span class="err">Couldn’t load calendar events.</span>'); }
+  renderAll();
 }
 function status(html){ document.getElementById("status").innerHTML = html; }
-// group by the owner's local day (matches the fetch windows / columns)
-function dayKeyLocal(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 
-// ---- Vimcal-style week grid ----
-let curDays = [];
-function renderGrid(days){
-  if (days) curDays = days;
-  const cal = document.getElementById("cal");
-  cal.innerHTML = "";
-  const hourpx = 60 * PPM;
-  const H = (S.hEnd - S.hStart) * hourpx;
+// ---- render ----
+function renderAll(){ renderHeadAndMonth(); renderBody(); renderPreview(); }
 
-  const head = document.createElement("div"); head.className = "cal-head";
-  head.style.gridTemplateColumns = "56px repeat(" + curDays.length + ",1fr)";
-  head.innerHTML = '<div class="gut"></div>';
-  curDays.forEach(d => {
+function renderHeadAndMonth(){
+  const days = weekDays();
+  document.getElementById("tzLine").textContent = tzTitleLine();
+  document.getElementById("tzLabel").textContent = tzLongName();
+  const first = days[0], last = days[6];
+  const m1 = fmt(new Date(first.getFullYear(), first.getMonth(), first.getDate(), 12), {month:"long", year:"numeric"});
+  const m2 = fmt(new Date(last.getFullYear(), last.getMonth(), last.getDate(), 12), {month:"long", year:"numeric"});
+  document.getElementById("monthLabel").textContent = (m1 === m2) ? m1 : m1.split(" ")[0] + " – " + m2;
+
+  const head = document.getElementById("calHead");
+  head.innerHTML = "";
+  const gut = document.createElement("div"); gut.className = "gut";
+  const chip = document.createElement("button"); chip.className = "tzchip"; chip.textContent = tzAbbr(S.tz);
+  chip.onclick = e => { e.stopPropagation(); openTzPop(chip); };
+  gut.appendChild(chip); head.appendChild(gut);
+  const todayK = keyOf(new Date());
+  days.forEach(d => {
     const noon = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12);
-    const dh = document.createElement("div"); dh.className = "dh";
-    dh.innerHTML = fmt(noon, {weekday:"short"}) + '<span class="dnum">' + fmt(noon, {month:"short", day:"numeric"}) + "</span>";
+    const dh = document.createElement("div"); dh.className = "dh" + (keyOf(d) === todayK ? " today" : "");
+    dh.innerHTML = '<div class="wd">' + fmt(noon, {weekday:"short"}).toUpperCase() + '</div><div class="dn">' + d.getDate() + "</div>";
     head.appendChild(dh);
   });
-  cal.appendChild(head);
+}
+function keyOf(d){ return d.getFullYear()+"-"+d.getMonth()+"-"+d.getDate(); }
 
-  const body = document.createElement("div"); body.className = "cal-body";
-  body.style.gridTemplateColumns = "56px repeat(" + curDays.length + ",1fr)";
+function renderBody(){
+  const days = weekDays();
+  const body = document.getElementById("calBody");
+  body.innerHTML = "";
+  const hourpx = 60 * PPM, H = 24 * hourpx;
   body.style.height = H + "px";
 
-  // hour gutter (labels follow the selected timezone)
   const gut = document.createElement("div"); gut.className = "gutter";
-  const mon0 = curDays[0];
-  for (let i = 0; i <= S.hEnd - S.hStart; i++){
-    const t = new Date(mon0.getFullYear(), mon0.getMonth(), mon0.getDate(), S.hStart + i);
+  for (let i = 1; i < 24; i++){
+    const t = new Date(days[0].getFullYear(), days[0].getMonth(), days[0].getDate(), i);
     const hl = document.createElement("div"); hl.className = "hl";
     hl.style.top = (i * hourpx) + "px";
-    hl.textContent = fmtTime(t);
-    if (i === 0) hl.style.transform = "translateY(0)";
-    if (i === S.hEnd - S.hStart) hl.style.transform = "translateY(-100%)";
+    hl.textContent = fmt(t, {hour:"numeric"});
     gut.appendChild(hl);
   }
   body.appendChild(gut);
 
-  curDays.forEach(d => {
-    const k = dayKeyLocal(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12));
-    const winStart = new Date(d); winStart.setHours(S.hStart,0,0,0);
+  const now = new Date();
+  days.forEach(d => {
+    const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
     const col = document.createElement("div"); col.className = "daycol";
     col.style.setProperty("--hourpx", hourpx + "px");
-    col.insertAdjacentHTML("beforeend", '<div class="gridlines"></div>');
+    col.dataset.day = dayStart.getTime();
+    col.insertAdjacentHTML("beforeend", '<div class="lines"></div>');
 
-    const posTop = t => Math.max(0, (t - winStart) / 60000 * PPM);
-    const posBot = t => Math.min(H, (t - winStart) / 60000 * PPM);
+    const top = t => (t - dayStart) / 60000 * PPM;
 
-    (S.events[k] || []).forEach(ev => {
-      const top = posTop(ev.start), bot = posBot(ev.end);
-      if (bot - top < 6) return;
-      const b = document.createElement("div"); b.className = "evt busy";
-      b.style.top = top + "px"; b.style.height = (bot - top - 2) + "px";
-      b.title = ev.subject + " (" + fmtTime(ev.start) + "–" + fmtTime(ev.end) + ")";
-      b.innerHTML = '<span class="bn"></span><span class="bt">' + fmtTime(ev.start) + "–" + fmtTime(ev.end) + "</span>";
-      b.querySelector(".bn").textContent = ev.subject;
-      col.appendChild(b);
+    // busy events
+    S.events.forEach(ev => {
+      const a = Math.max(top(ev.start), 0), b = Math.min(top(ev.end), H);
+      if (b <= 0 || a >= H || b - a < 4) return;
+      if (ev.end <= dayStart || ev.start >= new Date(dayStart.getTime() + 86400000)) return;
+      const el = document.createElement("div"); el.className = "evt busy";
+      el.style.top = a + "px"; el.style.height = Math.max(b - a - 1, 10) + "px";
+      el.innerHTML = '<span class="bn"></span><span class="bt">' + fmtTime(ev.start) + "–" + fmtTime(ev.end) + "</span>";
+      el.querySelector(".bn").textContent = ev.subject;
+      col.appendChild(el);
     });
 
-    (S.slots[k] || []).forEach(s => {
-      const id = s.startISO + "|" + s.endISO;
-      const top = posTop(s.start), bot = posBot(s.end);
-      if (bot - top < 6) return;
-      const b = document.createElement("button");
-      b.className = "evt slot" + (S.selected.has(id) ? " sel" : "");
-      b.style.top = top + "px"; b.style.height = (bot - top - 2) + "px";
-      if (bot - top < 24) b.style.fontSize = "10px";
-      b.textContent = fmtTime(s.start);
-      b.title = "Offer " + fmtTime(s.start) + " – " + fmtTime(s.end);
-      b.onclick = () => { S.selected.has(id) ? S.selected.delete(id) : S.selected.add(id); b.classList.toggle("sel"); renderPreview(); };
-      col.appendChild(b);
+    // painted selections
+    S.sel.forEach((s, idx) => {
+      if (s.end <= dayStart || s.start >= new Date(dayStart.getTime() + 86400000)) return;
+      const a = Math.max(top(s.start), 0), b = Math.min(top(s.end), H);
+      const el = document.createElement("div"); el.className = "evt sel";
+      el.style.top = a + "px"; el.style.height = Math.max(b - a - 1, 12) + "px";
+      el.textContent = fmtTime(s.start) + " – " + fmtTime(s.end);
+      el.insertAdjacentHTML("beforeend", '<span class="x">×</span>');
+      el.title = "Click to remove";
+      el.onpointerdown = e => e.stopPropagation();
+      el.onclick = e => { e.stopPropagation(); S.sel.splice(idx, 1); renderAll(); };
+      col.appendChild(el);
     });
 
+    // current time line
+    if (keyOf(d) === keyOf(now)){
+      const nl = document.createElement("div"); nl.className = "nowline";
+      nl.style.top = top(now) + "px";
+      col.appendChild(nl);
+    }
+
+    attachPaint(col, dayStart);
     body.appendChild(col);
   });
-  cal.appendChild(body);
+
+  // initial scroll to ~8 AM (only on first render)
+  const sc = document.getElementById("scroller");
+  if (!sc.dataset.scrolled){ sc.scrollTop = 8 * hourpx - 10; sc.dataset.scrolled = "1"; }
 }
 
-// ---- booking link ----
-function bookingLink(startISO, endISO){
+// ---- paint interaction ----
+let paint = null; // {col, dayStart, startMin, endMin, el}
+function snap(min){ return Math.round(min / SNAP) * SNAP; }
+function attachPaint(col, dayStart){
+  col.onpointerdown = e => {
+    if (e.button !== 0) return;
+    const rect = col.getBoundingClientRect();
+    const min = Math.max(0, Math.min(1410, Math.floor((e.clientY - rect.top) / PPM / SNAP) * SNAP));
+    const el = document.createElement("div"); el.className = "evt sel tmp";
+    col.appendChild(el);
+    paint = { col, dayStart, anchor: min, startMin: min, endMin: min + DEFAULT_LEN, el, moved: false };
+    drawPaint();
+    col.setPointerCapture(e.pointerId);
+  };
+  col.onpointermove = e => {
+    if (!paint || paint.col !== col) return;
+    const rect = col.getBoundingClientRect();
+    const cur = Math.max(0, Math.min(1440, snap((e.clientY - rect.top) / PPM)));
+    paint.moved = true;
+    if (cur >= paint.anchor + SNAP) { paint.startMin = paint.anchor; paint.endMin = cur; }          // drag down
+    else if (cur <= paint.anchor - SNAP) { paint.startMin = cur; paint.endMin = paint.anchor; }     // drag up
+    else { paint.startMin = paint.anchor; paint.endMin = paint.anchor + DEFAULT_LEN; }              // tiny move = 30 min
+    drawPaint();
+  };
+  col.onpointerup = () => {
+    if (!paint || paint.col !== col) return;
+    let s = paint.startMin, en = paint.endMin;
+    if (en - s < SNAP) en = s + DEFAULT_LEN;
+    if (!paint.moved) en = s + DEFAULT_LEN; // simple click = standard 30-min call
+    const start = new Date(paint.dayStart.getTime() + s * 60000);
+    const end   = new Date(paint.dayStart.getTime() + en * 60000);
+    paint.el.remove(); paint = null;
+    S.sel.push({ start, end });
+    S.sel.sort((a,b) => a.start - b.start);
+    renderAll();
+  };
+}
+function drawPaint(){
+  if (!paint) return;
+  const a = Math.min(paint.startMin, paint.endMin), b = Math.max(paint.startMin, paint.endMin);
+  paint.el.style.top = (a * PPM) + "px";
+  paint.el.style.height = Math.max((b - a) * PPM - 1, 12) + "px";
+  const st = new Date(paint.dayStart.getTime() + a * 60000), en = new Date(paint.dayStart.getTime() + b * 60000);
+  paint.el.textContent = fmtTime(st) + " – " + fmtTime(en);
+}
+
+// ---- booking link + share ----
+function bookingLink(start, end){
   const p = new URLSearchParams({
     path: "/calendar/action/compose", rru: "addevent",
-    startdt: startISO, enddt: endISO,
-    subject: document.getElementById("subj").value || ("Meeting with " + account.name),
-    to: account.username,
-    body: "Booked from " + account.name + "'s shared availability. Hit Send and it's confirmed.",
+    startdt: start.toISOString(), enddt: end.toISOString(),
+    subject: document.getElementById("subj").value || ("Meeting with " + ME.name),
+    to: ME.email,
+    body: "Booked from " + ME.name + "'s shared availability. Hit Send and it's confirmed.",
   });
   return "https://outlook.office.com/calendar/deeplink/compose?" + p.toString();
 }
-
-// ---- preview + copy ----
-function selectedByDay(){
-  const byDay = {};
-  [...S.selected].map(id => { const [s,e] = id.split("|"); return { start:new Date(s), end:new Date(e), s, e }; })
-    .sort((a,b) => a.start - b.start)
-    .forEach(x => { const k = dayKey(x.start); (byDay[k] = byDay[k] || []).push(x); });
-  return byDay;
-}
+function dayKeyTz(d){ return new Intl.DateTimeFormat("en-CA", {timeZone:S.tz, year:"numeric", month:"2-digit", day:"2-digit"}).format(d); }
 function buildHTML(){
-  const byDay = selectedByDay();
-  const keys = Object.keys(byDay).sort();
-  if (!keys.length) return null;
+  if (!S.sel.length) return null;
+  const byDay = {};
+  S.sel.slice().sort((a,b)=>a.start-b.start).forEach(x => { const k = dayKeyTz(x.start); (byDay[k] = byDay[k] || []).push(x); });
   let h = "<div>Would any of these times work for you? Click one to book it directly <i>(times in " + tzLongName() + ")</i>:<br><br>";
-  keys.forEach(k => {
-    const d = byDay[k][0].start;
-    h += "<b>" + fmt(d, {weekday:"long", month:"long", day:"numeric"}) + "</b><br>";
+  Object.keys(byDay).sort().forEach(k => {
+    h += "<b>" + fmt(byDay[k][0].start, {weekday:"long", month:"long", day:"numeric"}) + "</b><br>";
     byDay[k].forEach(x => {
-      h += '&nbsp;&nbsp;•&nbsp;<a href="' + bookingLink(x.s, x.e) + '">' + fmtTime(x.start) + " – " + fmtTime(x.end) + "</a><br>";
+      h += '&nbsp;&nbsp;•&nbsp;<a href="' + bookingLink(x.start, x.end) + '">' + fmtTime(x.start) + " – " + fmtTime(x.end) + "</a><br>";
     });
     h += "<br>";
   });
@@ -461,11 +520,11 @@ function buildHTML(){
 }
 function renderPreview(){
   document.getElementById("preview").innerHTML = buildHTML() ||
-    '<span style="color:var(--muted)">Click free slots above — a hyperlinked snippet appears here.</span>';
+    '<span style="color:var(--muted2)">Click or drag on the calendar to paint availability slots — a hyperlinked snippet appears here.</span>';
 }
 document.getElementById("copyBtn").onclick = async () => {
   const h = buildHTML();
-  if (!h) { toast("Select some slots first"); return; }
+  if (!h) { toast("Paint some slots first"); return; }
   const plain = document.getElementById("preview").innerText;
   try {
     await navigator.clipboard.write([new ClipboardItem({
@@ -485,8 +544,6 @@ function toast(msg){
   const t = document.getElementById("toast"); t.textContent = msg;
   t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 2200);
 }
-
-init();
 </script>
 </body>
 </html>
